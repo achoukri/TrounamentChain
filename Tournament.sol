@@ -2,9 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-
 contract SportTournament {
-
     // Structs
     struct Tournament {
         uint256 tournamentId;
@@ -29,6 +27,7 @@ contract SportTournament {
         uint256 player2Score;
         uint256 winner;
         bool isFinished;
+        bool isCanceled;
     }
 
     address public owner;
@@ -36,61 +35,106 @@ contract SportTournament {
     mapping(uint256 => Tournament) public tournaments;
     mapping(address => bool) public organizers;
     mapping(uint256 => Match[]) public matchesByTournamentId;
+    // this mapping will help us to find easily a match. if we don't use a mapping we will need to use For to find the match
+    // using a matchId or a TrournamentId to find matchs is a more efficient approach
+    mapping(uint256 => Match) public matchesByMatchId;
 
     // Events
-    event TournamentCreated(uint256 indexed tournamentId, address indexed organizer);
-    event MatchAdded(uint256 indexed tournamentId, address indexed player1, address indexed player2);
+
+    // we use indexed because it allows the Ethereum node to perform a more efficient
+    // filtering and search on the blockchain for events that match the indexed parameter value.
+    event TournamentCreated(
+        uint256 indexed tournamentId,
+        address indexed organizer
+    );
+    event MatchAdded(
+        uint256 indexed tournamentId,
+        address indexed player1,
+        address indexed player2
+    );
+
+    event MatchUpdated(
+        uint256 indexed matchId,
+        uint256 indexed tournamentId,
+        uint256 player1Score,
+        uint256 player2Score,
+        uint256 winner,
+        bool isFinished
+    );
     event LogMessage(uint256 message);
+
+    event MatchCanceled(uint256 _matchId);
 
     // Modifiers
 
     modifier onlyOrganizer() {
-        require(organizers[msg.sender], "Only organizers can perform this action");
+        require(
+            organizers[msg.sender],
+            "Only organizers can perform this action"
+        );
         _;
     }
-    
+
     modifier onlyOwner() {
-    require(msg.sender == owner, "Only the contract owner can call this function.");
-    _;
+        require(
+            msg.sender == owner,
+            "Only the contract owner can call this function."
+        );
+        _;
     }
 
     modifier tournamentExists(uint256 _tournamentId) {
-        require(tournaments[_tournamentId].tournamentId != 0, "Tournament does not exist");
+        require(
+            tournaments[_tournamentId].tournamentId != 0,
+            "Tournament does not exist"
+        );
         _;
     }
 
     modifier tournamentNotStarted(uint256 _tournamentId) {
         emit LogMessage(block.timestamp);
-        require(tournaments[_tournamentId].startDateTime > block.timestamp, "Tournament has already started");
+        require(
+            tournaments[_tournamentId].startDateTime > block.timestamp,
+            "Tournament has already started"
+        );
         _;
     }
 
     modifier matchDateInFuture(uint256 _matchDate) {
-        require(_matchDate > block.timestamp, "Match date must be in the future");
+        require(
+            _matchDate > block.timestamp,
+            "Match date must be in the future"
+        );
         _;
     }
 
-      constructor() {
+    constructor() {
         owner = msg.sender;
         organizers[owner] = true;
     }
 
-
-
     // Functions:
 
     /**
-    * @dev Creates a new tournament with the given start and end dates, entry fee, prize amount,
-    * and list of players. Only the organizer can create a tournament.
-    * @param _startDateTime The start date and time of the tournament as a Unix timestamp
-    * @param _endDateTime The end date and time of the tournament as a Unix timestamp
-    * @param _entryFee The entry fee for the tournament in wei
-    * @param _prizeAmount The total prize amount for the tournament in wei
-    * @param _players The list of players who have joined the tournament
-    */
-    function createTournament(uint256 _startDateTime, uint256 _endDateTime, uint256 _entryFee, uint256 _prizeAmount, address[] memory _players) public onlyOrganizer {
+     * @dev Creates a new tournament with the given start and end dates, entry fee, prize amount,
+     * and list of players. Only the organizer can create a tournament.
+     * @param _startDateTime The start date and time of the tournament as a Unix timestamp
+     * @param _endDateTime The end date and time of the tournament as a Unix timestamp
+     * @param _entryFee The entry fee for the tournament in wei
+     * @param _prizeAmount The total prize amount for the tournament in wei
+     * @param _players The list of players who have joined the tournament
+     */
+    function createTournament(
+        uint256 _startDateTime,
+        uint256 _endDateTime,
+        uint256 _entryFee,
+        uint256 _prizeAmount,
+        address[] memory _players
+    ) public onlyOrganizer {
         // Generate tournament ID
-        uint256 tournamentId = uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender)));
+        uint256 tournamentId = uint256(
+            keccak256(abi.encodePacked(block.timestamp, msg.sender))
+        );
 
         // Create tournament
         Tournament memory newTournament = Tournament({
@@ -111,8 +155,18 @@ contract SportTournament {
         emit TournamentCreated(tournamentId, msg.sender);
     }
 
-
-    function addMatch(uint256 _matchId, uint256 _tournamentId, address _player1, address _player2, uint256 _matchDate) public onlyOrganizer tournamentExists(_tournamentId) matchDateInFuture(_matchDate) {
+    function addMatch(
+        uint256 _matchId,
+        uint256 _tournamentId,
+        address _player1,
+        address _player2,
+        uint256 _matchDate
+    )
+        public
+        onlyOrganizer
+        tournamentExists(_tournamentId)
+        matchDateInFuture(_matchDate)
+    {
         // Create match
         Match memory newMatch = Match({
             player1: _player1,
@@ -123,60 +177,129 @@ contract SportTournament {
             player1Score: 0,
             player2Score: 0,
             winner: 0,
-            isFinished: false
+            isFinished: false,
+            isCanceled: false
         });
 
-        // Add match to tournament
+        // Add match to tournament and mapping
         matchesByTournamentId[_tournamentId].push(newMatch);
+        matchesByMatchId[_matchId] = newMatch;
 
         // Emit event
         emit MatchAdded(_tournamentId, _player1, _player2);
     }
 
-    //TODO: 
-    // 1. modify a match result
-    // 2. add new attribute match canceled
-    //
+    function updateMatch(
+        uint256 _matchId,
+        uint256 _tournamentId,
+        uint256 _player1Score,
+        uint256 _player2Score,
+        uint256 _winner,
+        bool _isFinished
+    ) public onlyOrganizer tournamentExists(_tournamentId) {
+        // Find the match using the mapping
+        Match storage matchToUpdate = matchesByMatchId[_matchId];
 
-        /**
-    * @dev Updates the prize amount of an existing tournament. Only the organizer can update the prize.
-    * @param _tournamentId The ID of the tournament to update
-    * @param _prizeAmount The new prize amount for the tournament in wei
-    */
-    function updatePrize(uint256 _tournamentId, uint256 _prizeAmount) public onlyOrganizer tournamentExists(_tournamentId) tournamentNotStarted(_tournamentId) {
+        // Verify that the match belongs to the specified tournament
+        require(
+            matchToUpdate.tournamentId == _tournamentId,
+            "Match does not belong to this tournament"
+        );
+
+        // Update the match information
+        matchToUpdate.player1Score = _player1Score;
+        matchToUpdate.player2Score = _player2Score;
+        matchToUpdate.winner = _winner;
+        matchToUpdate.isFinished = _isFinished;
+
+        // Emit event
+        emit MatchUpdated(
+            _matchId,
+            _tournamentId,
+            _player1Score,
+            _player2Score,
+            _winner,
+            _isFinished
+        );
+    }
+
+    // Function to update if a match is canceled
+    function cancelMatch(uint256 _matchId) public {
+        Match storage matchToUpdate = matchesByMatchId[_matchId];
+        require(matchToUpdate.matchId == _matchId, "Match does not exist");
+        require(!matchToUpdate.isCanceled, "Match has been canceled");
+
+        matchToUpdate.isCanceled = true;
+        emit MatchCanceled(_matchId);
+    }
+
+    /**
+     * @dev Updates the prize amount of an existing tournament. Only the organizer can update the prize.
+     * @param _tournamentId The ID of the tournament to update
+     * @param _prizeAmount The new prize amount for the tournament in wei
+     */
+    function updatePrize(
+        uint256 _tournamentId,
+        uint256 _prizeAmount
+    )
+        public
+        onlyOrganizer
+        tournamentExists(_tournamentId)
+        tournamentNotStarted(_tournamentId)
+    {
         tournaments[_tournamentId].prizeAmount = _prizeAmount;
     }
 
-        /**
-    * @dev Sets the winner of an existing tournament. Only the organizer can set the winner.
-    * @param _tournamentId The ID of the tournament to update
-    * @param _winner The address of the winner of the tournament
-    */
-    function setWinner(uint256 _tournamentId, address payable _winner) public onlyOrganizer tournamentExists(_tournamentId) tournamentNotStarted(_tournamentId) {
+    /**
+     * @dev Sets the winner of an existing tournament. Only the organizer can set the winner.
+     * @param _tournamentId The ID of the tournament to update
+     * @param _winner The address of the winner of the tournament
+     */
+    function setWinner(
+        uint256 _tournamentId,
+        address payable _winner
+    )
+        public
+        onlyOrganizer
+        tournamentExists(_tournamentId)
+        tournamentNotStarted(_tournamentId)
+    {
         tournaments[_tournamentId].winner = _winner;
     }
 
-    function payWinner(uint256 _tournamentId) public payable  {
+    function payWinner(uint256 _tournamentId) public payable {
         // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
-    require(tournaments[_tournamentId].winner != address(0), "Invalid address");
-    require(address(this).balance >= tournaments[_tournamentId].prizeAmount, "Insufficient balance");
+        require(
+            tournaments[_tournamentId].winner != address(0),
+            "Invalid address"
+        );
+        require(
+            address(this).balance >= tournaments[_tournamentId].prizeAmount,
+            "Insufficient balance"
+        );
 
-    tournaments[_tournamentId].winner.transfer(tournaments[_tournamentId].prizeAmount);
-    tournaments[_tournamentId].winnerPaid = true;
-    //emit PrizePaid(tournaments[_tournamentId].winner, tournaments[_tournamentId].prizeAmount);
+        tournaments[_tournamentId].winner.transfer(
+            tournaments[_tournamentId].prizeAmount
+        );
+        tournaments[_tournamentId].winnerPaid = true;
+        //emit PrizePaid(tournaments[_tournamentId].winner, tournaments[_tournamentId].prizeAmount);
     }
 
-
-    function payOrganizer(uint256 _tournamentId) public payable  {
+    function payOrganizer(uint256 _tournamentId) public payable {
         // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
-    require(tournaments[_tournamentId].organizer != address(0), "Invalid address");
-    require(address(this).balance >= tournaments[_tournamentId].prizeAmount, "Insufficient balance");
- 
-    tournaments[_tournamentId].organizer.transfer(tournaments[_tournamentId].prizeAmount);
-    tournaments[_tournamentId].organizerPaid = true;
-    //emit OrganizerPaid(organizer, organizerFee);
+        require(
+            tournaments[_tournamentId].organizer != address(0),
+            "Invalid address"
+        );
+        require(
+            address(this).balance >= tournaments[_tournamentId].prizeAmount,
+            "Insufficient balance"
+        );
+
+        tournaments[_tournamentId].organizer.transfer(
+            tournaments[_tournamentId].prizeAmount
+        );
+        tournaments[_tournamentId].organizerPaid = true;
+        //emit OrganizerPaid(organizer, organizerFee);
     }
-
-
-
 }
