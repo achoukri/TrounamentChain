@@ -13,6 +13,7 @@ contract SportTournament {
         address payable winner;
         address payable organizer;
         address[] players;
+        address[] teams;
         bool winnerPaid; // added variable to keep track of whether the winner has been paid or not
         bool organizerPaid; // added variable to keep track of whether the organizer has been paid or not
     }
@@ -53,6 +54,8 @@ contract SportTournament {
         address indexed player2
     );
 
+    event OrganizerAdded(address indexed organizer);
+
     event MatchUpdated(
         uint256 indexed matchId,
         uint256 indexed tournamentId,
@@ -64,6 +67,9 @@ contract SportTournament {
     event LogMessage(uint256 message);
 
     event MatchCanceled(uint256 _matchId);
+
+    event FeesPaid(address indexed payer, uint256 amount, address indexed feesAddress);
+
 
     // Modifiers
 
@@ -129,13 +135,15 @@ contract SportTournament {
         uint256 _endDateTime,
         uint256 _entryFee,
         uint256 _prizeAmount,
-        address[] memory _players
+        address[] memory _players,
+        address[] memory _teams
     ) public onlyOrganizer {
         // Generate tournament ID
         uint256 tournamentId = uint256(
             keccak256(abi.encodePacked(block.timestamp, msg.sender))
         );
 
+        // we use memeory to indecate that some variables/arrays are just held in memory for the duration of the function call (to reduce gaz fees).
         // Create tournament
         Tournament memory newTournament = Tournament({
             tournamentId: tournamentId,
@@ -146,6 +154,7 @@ contract SportTournament {
             winner: payable(address(0)),
             organizer: payable(msg.sender),
             players: _players,
+            teams: _teams,
             winnerPaid: false,
             organizerPaid: false
         });
@@ -278,6 +287,11 @@ contract SportTournament {
             "Insufficient balance"
         );
 
+        require(
+             tournaments[_tournamentId].winnerPaid = true,
+            "Winner is paid"
+        );
+
         tournaments[_tournamentId].winner.transfer(
             tournaments[_tournamentId].prizeAmount
         );
@@ -302,4 +316,33 @@ contract SportTournament {
         tournaments[_tournamentId].organizerPaid = true;
         //emit OrganizerPaid(organizer, organizerFee);
     }
+
+    function payFees(uint256 _tournamentId, address payable _feesAddress) public payable {
+    Tournament storage tournament = tournaments[_tournamentId];
+    require(msg.value == tournament.entryFee, "Fee amount is not correct");
+
+    // Transfer fees to the specified address
+    _feesAddress.transfer(msg.value);
+    
+    emit FeesPaid(msg.sender, msg.value, _feesAddress);
+}
+
+ //The addOrganizer function adds a new organizer to the list of registered organizers.
+    function addOrganizer(address organizer) public onlyOwner {
+    organizers[organizer] = true;
+    emit OrganizerAdded(organizer);
+    }
+
+  //The addPlayer function adds a new player to the list of players for a given tournament.
+    function addPlayer(uint256 tournamentId, address player) public onlyOwner tournamentExists(tournamentId) {
+        tournaments[tournamentId].players.push(player);
+       // emit PlayerAdded(tournamentId, player);
+    }
+
+    //The addTeam function adds a new team to the list of teams for a given tournament.
+    function addTeam(uint256 tournamentId, address team) public onlyOwner tournamentExists(tournamentId) {
+        tournaments[tournamentId].teams.push(team);
+       // emit TeamAdded(tournamentId, team);
+    }
+
 }
