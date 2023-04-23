@@ -18,6 +18,8 @@ contract SportTournament {
         bool organizerPaid; // added variable to keep track of whether the organizer has been paid or not
     }
 
+    // in the case of teams matchs, the backend will put the address of team responsible
+
     struct Match {
         address player1; // or team1;
         address player2; // or team2;
@@ -50,8 +52,8 @@ contract SportTournament {
     );
     event MatchAdded(
         uint256 indexed tournamentId,
-        address indexed player1,
-        address indexed player2
+        address indexed player1, // or team1 in the case of teams
+        address indexed player2 // or team2 in the case of teams
     );
 
     event OrganizerAdded(address indexed organizer);
@@ -59,8 +61,8 @@ contract SportTournament {
     event MatchUpdated(
         uint256 indexed matchId,
         uint256 indexed tournamentId,
-        uint256 player1Score,
-        uint256 player2Score,
+        uint256 player1Score, // or team1Score in the case of teams
+        uint256 player2Score, // or team2Score in the case of teams
         uint256 winner,
         bool isFinished
     );
@@ -68,8 +70,11 @@ contract SportTournament {
 
     event MatchCanceled(uint256 _matchId);
 
-    event FeesPaid(address indexed payer, uint256 amount, address indexed feesAddress);
-
+    event FeesPaid(
+        address indexed payer,
+        uint256 amount,
+        address indexed feesAddress
+    );
 
     // Modifiers
 
@@ -287,10 +292,7 @@ contract SportTournament {
             "Insufficient balance"
         );
 
-        require(
-             tournaments[_tournamentId].winnerPaid = true,
-            "Winner is paid"
-        );
+        require(tournaments[_tournamentId].winnerPaid = true, "Winner is paid");
 
         tournaments[_tournamentId].winner.transfer(
             tournaments[_tournamentId].prizeAmount
@@ -317,32 +319,44 @@ contract SportTournament {
         //emit OrganizerPaid(organizer, organizerFee);
     }
 
-    function payFees(uint256 _tournamentId, address payable _feesAddress) public payable {
-    Tournament storage tournament = tournaments[_tournamentId];
-    require(msg.value == tournament.entryFee, "Fee amount is not correct");
+    // PayFees is designed to be a generic function, and not specific to pay the organizer of the tournament.
+    // the reason is that we want to hundle business cases by the backend, and thast's why we leave to the backend to decide to which address send fees
+    // normally it should be the address of the owner of the smart contract (the smart contract deployer).
+    // we can also use the smart contract to pay other fees in the case of a new business case.
+    function payFees(
+        uint256 _tournamentId,
+        address payable _feesAddress
+    ) public payable {
+        Tournament storage tournament = tournaments[_tournamentId];
+        require(msg.value == tournament.entryFee, "Fee amount is not correct");
 
-    // Transfer fees to the specified address
-    _feesAddress.transfer(msg.value);
-    
-    emit FeesPaid(msg.sender, msg.value, _feesAddress);
-}
+        // Transfer fees to the specified address
+        _feesAddress.transfer(msg.value);
 
- //The addOrganizer function adds a new organizer to the list of registered organizers.
-    function addOrganizer(address organizer) public onlyOwner {
-    organizers[organizer] = true;
-    emit OrganizerAdded(organizer);
+        emit FeesPaid(msg.sender, msg.value, _feesAddress);
     }
 
-  //The addPlayer function adds a new player to the list of players for a given tournament.
-    function addPlayer(uint256 tournamentId, address player) public onlyOwner tournamentExists(tournamentId) {
+    //The addOrganizer function adds a new organizer to the list of registered organizers.
+    function addOrganizer(address organizer) public onlyOwner {
+        organizers[organizer] = true;
+        emit OrganizerAdded(organizer);
+    }
+
+    //The addPlayer function adds a new player to the list of players for a given tournament.
+    function addPlayer(
+        uint256 tournamentId,
+        address player
+    ) public onlyOwner tournamentExists(tournamentId) {
         tournaments[tournamentId].players.push(player);
-       // emit PlayerAdded(tournamentId, player);
+        // emit PlayerAdded(tournamentId, player);
     }
 
     //The addTeam function adds a new team to the list of teams for a given tournament.
-    function addTeam(uint256 tournamentId, address team) public onlyOwner tournamentExists(tournamentId) {
+    function addTeam(
+        uint256 tournamentId,
+        address team
+    ) public onlyOwner tournamentExists(tournamentId) {
         tournaments[tournamentId].teams.push(team);
-       // emit TeamAdded(tournamentId, team);
+        // emit TeamAdded(tournamentId, team);
     }
-
 }
