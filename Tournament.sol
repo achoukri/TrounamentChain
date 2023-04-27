@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-contract SportTournament {
+contract TournamentChain {
     // Structs
     struct Tournament {
         uint256 tournamentId;
@@ -74,6 +74,18 @@ contract SportTournament {
         address indexed payer,
         uint256 amount,
         address indexed feesAddress
+    );
+
+    event OrganizerPaid(
+        uint256 indexed tournamentId,
+        address organizer,
+        uint256 amount
+    );
+
+    event PrizePaid(
+        uint256 indexed _tournamentId,
+        address indexed _winner,
+        uint256 _prizeAmount
     );
 
     // Modifiers
@@ -283,6 +295,7 @@ contract SportTournament {
 
     function payWinner(uint256 _tournamentId) public payable {
         // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
+
         require(
             tournaments[_tournamentId].winner != address(0),
             "Invalid address"
@@ -291,14 +304,25 @@ contract SportTournament {
             address(this).balance >= tournaments[_tournamentId].prizeAmount,
             "Insufficient balance"
         );
-
-        require(tournaments[_tournamentId].winnerPaid = true, "Winner is paid");
+        require(
+            tournaments[_tournamentId].winnerPaid != true,
+            "Winner is paid"
+        );
+        require(
+            msg.value == tournaments[_tournamentId].prizeAmount,
+            "Inccorrect transfer amount"
+        );
 
         tournaments[_tournamentId].winner.transfer(
             tournaments[_tournamentId].prizeAmount
         );
         tournaments[_tournamentId].winnerPaid = true;
-        //emit PrizePaid(tournaments[_tournamentId].winner, tournaments[_tournamentId].prizeAmount);
+
+        emit PrizePaid(
+            _tournamentId,
+            tournaments[_tournamentId].winner,
+            tournaments[_tournamentId].prizeAmount
+        );
     }
 
     function payOrganizer(uint256 _tournamentId) public payable {
@@ -316,13 +340,19 @@ contract SportTournament {
             tournaments[_tournamentId].prizeAmount
         );
         tournaments[_tournamentId].organizerPaid = true;
-        //emit OrganizerPaid(organizer, organizerFee);
+        emit OrganizerPaid(
+            _tournamentId,
+            tournaments[_tournamentId].organizer,
+            tournaments[_tournamentId].prizeAmount
+        );
     }
 
-    // PayFees is designed to be a generic function, and not specific to pay the organizer of the tournament.
-    // the reason is that we want to hundle business cases by the backend, and thast's why we leave to the backend to decide to which address send fees
-    // normally it should be the address of the owner of the smart contract (the smart contract deployer).
-    // we can also use the smart contract to pay other fees in the case of a new business case.
+    /**
+     * PayFees is designed to be a generic function and is not specific to paying the tournament organizer.
+     * We want to handle business cases through the backend, and therefore leave it to the backend to decide which address to send fees.
+     * Normally, only the owner of the smart contract (the smart contract deployer) can use this function.
+     * This function can also be used to pay other fees in the case of a new business case.
+     */
     function payFees(
         uint256 _tournamentId,
         address payable _feesAddress
