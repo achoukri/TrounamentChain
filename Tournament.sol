@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-contract TournamentChain {
+contract SportTournament {
     // Structs
     struct Tournament {
         uint256 tournamentId;
@@ -76,17 +76,11 @@ contract TournamentChain {
         address indexed feesAddress
     );
 
-    event OrganizerPaid(
-        uint256 indexed tournamentId,
-        address organizer,
-        uint256 amount
-    );
+    event OrganizerPaid(uint256 indexed tournamentId, address organizer, uint256 amount);
 
-    event PrizePaid(
-        uint256 indexed _tournamentId,
-        address indexed _winner,
-        uint256 _prizeAmount
-    );
+    event PrizePaid(uint256 indexed _tournamentId, address indexed _winner, uint256 _prizeAmount);
+
+
 
     // Modifiers
 
@@ -271,7 +265,6 @@ contract TournamentChain {
         public
         onlyOrganizer
         tournamentExists(_tournamentId)
-        tournamentNotStarted(_tournamentId)
     {
         tournaments[_tournamentId].prizeAmount = _prizeAmount;
     }
@@ -288,42 +281,24 @@ contract TournamentChain {
         public
         onlyOrganizer
         tournamentExists(_tournamentId)
-        tournamentNotStarted(_tournamentId)
     {
         tournaments[_tournamentId].winner = _winner;
     }
 
     function payWinner(uint256 _tournamentId) public payable {
-        // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
+     // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
 
-        require(
-            tournaments[_tournamentId].winner != address(0),
-            "Invalid address"
-        );
-        require(
-            address(this).balance >= tournaments[_tournamentId].prizeAmount,
-            "Insufficient balance"
-        );
-        require(
-            tournaments[_tournamentId].winnerPaid != true,
-            "Winner is paid"
-        );
-        require(
-            msg.value == tournaments[_tournamentId].prizeAmount,
-            "Inccorrect transfer amount"
-        );
+    require(tournaments[_tournamentId].winner != address(0), "Invalid address");
+    require(address(this).balance >= tournaments[_tournamentId].prizeAmount, "Insufficient balance");
+    require(tournaments[_tournamentId].winnerPaid != true, "Winner is paid");
+    require(msg.value == tournaments[_tournamentId].prizeAmount,"Inccorrect transfer amount");
 
-        tournaments[_tournamentId].winner.transfer(
-            tournaments[_tournamentId].prizeAmount
-        );
-        tournaments[_tournamentId].winnerPaid = true;
+    tournaments[_tournamentId].winner.transfer(tournaments[_tournamentId].prizeAmount);
+    tournaments[_tournamentId].winnerPaid = true;
 
-        emit PrizePaid(
-            _tournamentId,
-            tournaments[_tournamentId].winner,
-            tournaments[_tournamentId].prizeAmount
-        );
+    emit PrizePaid(_tournamentId, tournaments[_tournamentId].winner, tournaments[_tournamentId].prizeAmount);
     }
+
 
     function payOrganizer(uint256 _tournamentId) public payable {
         // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
@@ -340,11 +315,7 @@ contract TournamentChain {
             tournaments[_tournamentId].prizeAmount
         );
         tournaments[_tournamentId].organizerPaid = true;
-        emit OrganizerPaid(
-            _tournamentId,
-            tournaments[_tournamentId].organizer,
-            tournaments[_tournamentId].prizeAmount
-        );
+        emit OrganizerPaid(_tournamentId, tournaments[_tournamentId].organizer, tournaments[_tournamentId].prizeAmount);
     }
 
     /**
