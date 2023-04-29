@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-contract SportTournament {
+contract TournamentChain {
     // Structs
     struct Tournament {
         uint256 tournamentId;
@@ -76,10 +76,31 @@ contract SportTournament {
         address indexed feesAddress
     );
 
-    event OrganizerPaid(uint256 indexed tournamentId, address organizer, uint256 amount);
+    event OrganizerPaid(
+        uint256 indexed tournamentId,
+        address organizer,
+        uint256 amount
+    );
 
-    event PrizePaid(uint256 indexed _tournamentId, address indexed _winner, uint256 _prizeAmount);
+    event PrizePaid(
+        uint256 indexed _tournamentId,
+        address indexed _winner,
+        uint256 _prizeAmount
+    );
 
+    event TournamentDetailsDisplayed(
+    uint256 tournamentId,
+    uint256 startDateTime,
+    uint256 endDateTime,
+    uint256 entryFee,
+    uint256 prizeAmount,
+    address winner,
+    address organizer,
+    address[] players,
+    address[] teams,
+    bool winnerPaid,
+    bool organizerPaid
+    );
 
 
     // Modifiers
@@ -108,14 +129,6 @@ contract SportTournament {
         _;
     }
 
-    modifier tournamentNotStarted(uint256 _tournamentId) {
-        emit LogMessage(block.timestamp);
-        require(
-            tournaments[_tournamentId].startDateTime > block.timestamp,
-            "Tournament has already started"
-        );
-        _;
-    }
 
     modifier matchDateInFuture(uint256 _matchDate) {
         require(
@@ -243,6 +256,23 @@ contract SportTournament {
         );
     }
 
+    function displayTournamentDetails(uint256 _tournamentId) public tournamentExists(_tournamentId) {
+    Tournament storage tournament = tournaments[_tournamentId];
+    emit TournamentDetailsDisplayed(
+        tournament.tournamentId,
+        tournament.startDateTime,
+        tournament.endDateTime,
+        tournament.entryFee,
+        tournament.prizeAmount,
+        tournament.winner,
+        tournament.organizer,
+        tournament.players,
+        tournament.teams,
+        tournament.winnerPaid,
+        tournament.organizerPaid
+    );
+    }
+
     // Function to update if a match is canceled
     function cancelMatch(uint256 _matchId) public {
         Match storage matchToUpdate = matchesByMatchId[_matchId];
@@ -286,19 +316,36 @@ contract SportTournament {
     }
 
     function payWinner(uint256 _tournamentId) public payable {
-     // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
+        // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
 
-    require(tournaments[_tournamentId].winner != address(0), "Invalid address");
-    require(address(this).balance >= tournaments[_tournamentId].prizeAmount, "Insufficient balance");
-    require(tournaments[_tournamentId].winnerPaid != true, "Winner is paid");
-    require(msg.value == tournaments[_tournamentId].prizeAmount,"Inccorrect transfer amount");
+        require(
+            tournaments[_tournamentId].winner != address(0),
+            "Invalid address"
+        );
+        require(
+            address(this).balance >= tournaments[_tournamentId].prizeAmount,
+            "Insufficient balance"
+        );
+        require(
+            tournaments[_tournamentId].winnerPaid != true,
+            "Winner is paid"
+        );
+        require(
+            msg.value == tournaments[_tournamentId].prizeAmount,
+            "Inccorrect transfer amount"
+        );
 
-    tournaments[_tournamentId].winner.transfer(tournaments[_tournamentId].prizeAmount);
-    tournaments[_tournamentId].winnerPaid = true;
+        tournaments[_tournamentId].winner.transfer(
+            tournaments[_tournamentId].prizeAmount
+        );
+        tournaments[_tournamentId].winnerPaid = true;
 
-    emit PrizePaid(_tournamentId, tournaments[_tournamentId].winner, tournaments[_tournamentId].prizeAmount);
+        emit PrizePaid(
+            _tournamentId,
+            tournaments[_tournamentId].winner,
+            tournaments[_tournamentId].prizeAmount
+        );
     }
-
 
     function payOrganizer(uint256 _tournamentId) public payable {
         // we use the call directly to the value of winner and prizeAmount, because by declaring variables fees will be expansive
@@ -315,7 +362,11 @@ contract SportTournament {
             tournaments[_tournamentId].prizeAmount
         );
         tournaments[_tournamentId].organizerPaid = true;
-        emit OrganizerPaid(_tournamentId, tournaments[_tournamentId].organizer, tournaments[_tournamentId].prizeAmount);
+        emit OrganizerPaid(
+            _tournamentId,
+            tournaments[_tournamentId].organizer,
+            tournaments[_tournamentId].prizeAmount
+        );
     }
 
     /**
